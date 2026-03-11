@@ -1,0 +1,104 @@
+{
+  "sample_queries": [
+    {
+      "id": 1,
+      "category": "personal_investment",
+      "query": "I am 40 years old with moderate risk tolerance. How should I invest $200,000 for retirement?"
+    },
+    {
+      "id": 2,
+      "category": "personal_investment",
+      "query": "I want to build a long-term investment portfolio. What allocation would you recommend?"
+    },
+    {
+      "id": 3,
+      "category": "personal_investment",
+      "query": "I am close to retirement and want low-risk investments. What should I invest in?"
+    },
+    {
+      "id": 4,
+      "category": "personal_investment",
+      "query": "I want steady income from my investments. What type of portfolio should I build?"
+    },
+    {
+      "id": 5,
+      "category": "personal_investment",
+      "query": "I want to invest my savings but avoid high volatility. What strategies should I follow?"
+    },
+    {
+      "id": 6,
+      "category": "risk_profile",
+      "query": "What is a good portfolio allocation for someone with low risk tolerance?"
+    },
+    {
+      "id": 7,
+      "category": "risk_profile",
+      "query": "What investments are suitable for high-risk high-growth investors?"
+    },
+    {
+      "id": 8,
+      "category": "risk_profile",
+      "query": "How should someone diversify their investment portfolio?"
+    },
+    {
+      "id": 9,
+      "category": "risk_profile",
+      "query": "What percentage of bonds should be in a retirement portfolio?"
+    },
+    {
+      "id": 10,
+      "category": "risk_profile",
+      "query": "What are the safest long-term investment options?"
+    },
+    {
+      "id": 11,
+      "category": "financial_knowledge",
+      "query": "What is diversification and why is it important in investing?"
+    },
+    {
+      "id": 12,
+      "category": "financial_knowledge",
+      "query": "What are ETFs and how do they work?"
+    },
+    {
+      "id": 13,
+      "category": "financial_knowledge",
+      "query": "What is the difference between index funds and mutual funds?"
+    },
+    {
+      "id": 14,
+      "category": "financial_knowledge",
+      "query": "What is asset allocation in portfolio management?"
+    },
+    {
+      "id": 15,
+      "category": "financial_knowledge",
+      "query": "Why are bonds considered low risk investments?"
+    },
+    {
+      "id": 16,
+      "category": "market_trends",
+      "query": "What are the current trends in the stock market?"
+    },
+    {
+      "id": 17,
+      "category": "market_trends",
+      "query": "Are bonds performing well in the current market?"
+    },
+    {
+      "id": 18,
+      "category": "market_trends",
+      "query": "What are the best ETFs for long-term investing right now?"
+    },
+    {
+      "id": 19,
+      "category": "market_trends",
+      "query": "What sectors are expected to grow in the next five years?"
+    },
+    {
+      "id": 20,
+      "category": "market_trends",
+      "query": "What investments perform well during inflation?"
+    }
+  ]
+}
