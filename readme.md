@@ -14,6 +14,32 @@ The agents should communicate effectively to reach a resolution and terminate on
 
 The system is an advisor-led workflow. The Advisor Agent orchestrates the plan, delegates research to the Analyst Agent, and uses a simulated Client Agent to generate the profile and evaluate whether the recommendation resolves the query. The workflow enforces a single decision-maker and an explicit stop condition.
 
+```mermaid
+flowchart LR
+  user((User)) -->|Query| advisor[Advisor Agent]
+
+  subgraph Agents
+    client[Client Agent]
+    analyst[Analyst Agent]
+  end
+
+  subgraph Tools
+    todo[Todo Tool]
+    research[Research Mode Tool]
+    kb[Knowledge Search Tool]
+    web[Web Search Tool]
+  end
+
+  advisor -->|Generate profile| client
+  advisor -->|Create tasks| todo
+  advisor -->|Set research modes| research
+  advisor -->|Research request| analyst
+  advisor -->|Evaluate recommendation| client
+
+  analyst -->|KB search| kb
+  analyst -->|Web search| web
+```
+
 ## Why the Advisor is the orchestrator
 
 Only the Advisor sees the full state and decides when to call tools or sub-agents. This keeps research, task ordering, and recommendation drafting in one place, avoiding conflicting decisions between agents. The Advisor is the only agent that can decide:
@@ -61,15 +87,90 @@ Detailed flow:
 
 The KB is stored in LanceDB with curated markdown sources under knowledge_store/data. The knowledge store tool retrieves and reranks chunks for evergreen concepts and internal guidance. Each chunk is normalized into a structured search result with title, snippet, and category for easier synthesis.
 
+Why LanceDB and flat hybrid retrieval:
+
+- The demo KB is small, so a flat index keeps setup simple and predictable.
+- Hybrid retrieval (dense + lexical) improves recall on short financial prompts.
+- LanceDB is lightweight and fast for local demos, which keeps the repo easy to run.
+
 ## Internet retrieval design
 
 The Advisor sets `State.ANALYST_RESEARCH_MODE` (KB, WEB, or both). The Analyst uses the KB search tool for evergreen concepts and the web search tool for time-sensitive or market-specific information. When both are selected, the Analyst performs one pass of each and synthesizes a single response.
+
+### Research tools
+
+- **KnowledgeSearchTool**
+  - Source: local LanceDB index built from markdown KB content.
+  - Behavior: hybrid retrieval with reranking, returning structured results (title, snippet, category, doc_id).
+  - When used: fundamentals, evergreen concepts, internal guidance.
+
+- **WebSearchTool**
+  - Source: Tavily API.
+  - Behavior: retrieves top-K web results and normalizes to title, url, snippet, source_type.
+  - When used: time-sensitive or market-specific information.
 
 ## How resolution is determined
 
 The Client Agent returns a `ClientResponse` with `resolved: true/false` and an optional follow-up concern. The Advisor can revise once when unresolved. A max review count prevents infinite loops. If analyst findings contain explicit gaps or assumptions, the client evaluation is encouraged to raise a focused follow-up.
 
+## Observability
+
+Token usage is logged via an ADK plugin (`TokenTracingPlugin`) that records latency and token usage per model call.
+
 ## How to run
+
+### Poetry setup
+
+```bash
+poetry install
+```
+
+### Environment configuration
+
+Copy the template and fill in your API keys:
+
+```bash
+copy .env.tmpl .env
+```
+
+Required values in .env:
+
+- `LLM_PROVIDER`
+- `LLM_MODEL_NAME`
+- `LLM_API_KEY`
+- `LLM_API_BASE`
+- `TAVILY_API_KEY` (required for web search)
+
+Optional tuning values:
+
+- `LLM_TEMPERATURE`
+- `LLM_MAX_TOKENS`
+- `LLM_TIMEOUT`
+- `LLM_NUM_RETRIES`
+
+Knowledge store configuration (optional):
+
+- `KNOWLEDGE_DATA_DIR`
+- `KNOWLEDGE_DB_DIR`
+- `KNOWLEDGE_TABLE_NAME`
+- `KNOWLEDGE_CROSS_ENCODER_MODEL`
+- `KNOWLEDGE_EMBEDDING_MODEL`
+
+### Knowledge store indexing (first-time setup)
+
+The LanceDB index must be built before running workflows that use KB search.
+
+```bash
+poetry run python .\scripts\ingest_kb.py
+```
+
+Optional: verify with a search query:
+
+```bash
+poetry run python .\scripts\search_kb.py --query "bond laddering"
+```
+
+### Run examples
 
 - End-to-end example: [examples/end_to_end_example.py](examples/end_to_end_example.py)
 
@@ -77,7 +178,15 @@ The Client Agent returns a `ClientResponse` with `resolved: true/false` and an o
 poetry run python -m examples.end_to_end_example
 ```
 
-- Web UI (in-memory sessions to avoid local state serialization issues):
+- Resolution loop example: [examples/workflow_resolution_loop_example.py](examples/workflow_resolution_loop_example.py)
+
+```bash
+poetry run python -m examples.workflow_resolution_loop_example
+```
+
+### Web UI
+
+Use in-memory sessions to avoid local state serialization issues:
 
 ```bash
 poetry run python -m google.adk.cli web .\agents --session_service_uri memory://
@@ -87,12 +196,25 @@ poetry run python -m google.adk.cli web .\agents --session_service_uri memory://
 
 ```json
 {
-  "summary": "A moderate-risk retirement strategy that balances growth and income.",
-  "recommendation": "Diversify across equities and fixed income, ladder bonds, and review annually.",
+  "summary": "A moderate-risk retirement strategy that balances growth and income, supported by diversified exposure across equities and fixed income. [1][2]",
+  "recommendation": "Allocate a balanced mix of diversified equities and fixed income, and implement bond laddering to manage rate risk. [2][3]",
   "next_steps": [
     "Confirm target allocation",
     "Implement a bond ladder",
     "Rebalance quarterly"
+  ],
+  "assumptions": [
+    "You have a long-term horizon and moderate risk tolerance.",
+    "You can tolerate interim volatility while staying invested."
+  ],
+  "missing_data": [
+    "Exact retirement date and required income target.",
+    "Taxable vs. tax-advantaged account mix."
+  ],
+  "citations": [
+    "CFA Institute Wealth Management Research",
+    "Vanguard Diversification Research",
+    "Fidelity Fixed Income Education"
   ]
 }
 ```
@@ -103,3 +225,6 @@ poetry run python -m google.adk.cli web .\agents --session_service_uri memory://
 - The first run incurs an initial delay while embedding and cross-encoder models load; models are not lazy-loaded per request.
 - Web UI persistence can fail if complex objects are stored in session state; use in-memory sessions for the UI command above.
 - External API keys are required for web search and LLM providers.
+- The Tantivy-based search is a minimal implementation intended for demos and does not include advanced ranking or filtering.
+- Some error handling uses base exceptions rather than dedicated exception types due to time constraints.
+- Unit tests are not yet in place; examples act as the current smoke checks.

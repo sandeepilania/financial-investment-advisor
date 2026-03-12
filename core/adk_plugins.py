@@ -26,11 +26,18 @@ class TokenTracingPlugin(BasePlugin):
 		usage = getattr(llm_response, "usage", None) or getattr(
 			llm_response, "token_usage", None
 		)
+		usage_metadata = getattr(llm_response, "usage_metadata", None) or getattr(
+			llm_response, "usageMetadata", None
+		)
+		if usage_metadata is None and isinstance(llm_response, BaseModel):
+			payload = llm_response.model_dump()
+			usage_metadata = payload.get("usageMetadata") or payload.get("usage_metadata")
 
 		log_payload = {
 			"agent": callback_context.agent_name,
 			"latency_ms": latency_ms,
 			"usage": usage,
+			"usage_metadata": usage_metadata,
 		}
 		WorkflowLogger.log_info("TOKEN_TRACING", "MODEL_COMPLETE", data=log_payload, prune_falsy=True)
 
