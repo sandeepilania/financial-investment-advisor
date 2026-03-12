@@ -17,18 +17,6 @@ The system is an advisor-led workflow. The Advisor Agent orchestrates the plan, 
 <img width="1737" height="692" alt="image" src="https://github.com/user-attachments/assets/1b8c21e3-1301-41da-a5ea-a7f053d11a2e" />
 
 
-
-
-  advisor -->|Generate profile| client
-  advisor -->|Create tasks| todo
-  advisor -->|Set research modes| research
-  advisor -->|Research request| analyst
-  advisor -->|Evaluate recommendation| client
-
-  analyst -->|KB search| kb
-  analyst -->|Web search| web
-```
-
 ## Why the Advisor is the orchestrator
 
 Only the Advisor sees the full state and decides when to call tools or sub-agents. This keeps research, task ordering, and recommendation drafting in one place, avoiding conflicting decisions between agents. The Advisor is the only agent that can decide:
