@@ -2,7 +2,7 @@
 name = "financial-investment-advisor"
 version = "0.1.0"
 description = "A multi-agent financial investment advisor system using Google ADK and LanceDB"
-authors = ["Sandeep Pilania<sandeepilania@gmail.com>"]
+authors = ["Sandeep Pilania <sandeepilania@gmail.com>"]
 readme = "readme.md"
 packages = [
     { include = "agents" },
@@ -18,10 +18,13 @@ google-adk = "*"
 litellm = "^1.60"
 lancedb = "^0.21"
 pydantic = "^2.10"
-structlog = "^25.1"
+loguru = "^0.7"
 tenacity = "^9.0"
 python-dotenv = "^1.0"
 sentence-transformers = "^4.0"
+pandas = "^3.0.1"
+tantivy = "^0.22"
+pylance = "^2.0.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3"
@@ -36,6 +39,9 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "integration: marks tests that make real external API calls (deselect with '-m not integration')",
+]
 
 [tool.ruff]
 line-length = 100
