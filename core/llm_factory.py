@@ -49,7 +49,7 @@ def _build_litellm_model() -> LiteLlm:
 
     if not api_key:
         raise ValueError(
-            "LLM_API_KEY, GITHUB_API_KEY, or GITHUB_TOKEN is not set in the .env file."
+            "LLM_API_KEY or OPENAI_API_KEY is not set in the .env file."
         )
 
     model = _resolve_model_name(provider, model_name)

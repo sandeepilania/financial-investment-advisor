@@ -4,6 +4,7 @@ Provides structured, stage-based logging across all agents and services.
 """
 
 import json
+import os
 import sys
 from typing import Any, Literal
 
@@ -20,6 +21,11 @@ def strip_none(data: dict[str, Any]) -> dict[str, Any]:
     return {k: strip_none(v) if isinstance(v, dict) else v for k, v in data.items() if v is not None}
 
 
+USE_LNAV_LOG_FORMAT = os.getenv("USE_LNAV_LOG_FORMAT")
+USE_LNAV_FORMAT = os.getenv("USE_LNAV_FORMAT")
+_USE_JSON_LOGS = bool(USE_LNAV_LOG_FORMAT or USE_LNAV_FORMAT)
+
+
 class LogObject(BaseModel):
     """Structured log object for workflow logging."""
 
@@ -29,7 +35,24 @@ class LogObject(BaseModel):
     data: dict[str, Any] | BaseModel | None = None
     strip_none_values: bool = False
 
+    def to_json(self) -> str:
+        data = self.data
+        if self.strip_none_values and isinstance(data, dict):
+            data = strip_none(data)
+
+        payload = {
+            "stage": self.stage,
+            "level": self.level,
+            "message": self.message,
+            "data": data,
+        }
+
+        return json.dumps(payload, ensure_ascii=True)
+
     def __str__(self) -> str:
+        if _USE_JSON_LOGS:
+            return self.to_json()
+
         data = self.data
         if self.strip_none_values and isinstance(data, dict):
             data = strip_none(data)

@@ -45,9 +45,9 @@ class ConfigManager:
     def get_api_key(self) -> str | None:
         """Get the first usable API key from known environment variables."""
         api_key = self.get("LLM_API_KEY")
-        if api_key == "your_github_token_here":
+        if api_key == "your_openai_api_key_here":
             api_key = None
-        return api_key or self.get("GITHUB_API_KEY") or self.get("GITHUB_TOKEN")
+        return api_key or self.get("OPENAI_API_KEY")
 
 
 LLM_CONFIG = ConfigManager()
