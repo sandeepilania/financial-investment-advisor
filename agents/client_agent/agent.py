@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from google.adk.agents.callback_context import CallbackContext
 from google.genai import types
+from pydantic import BaseModel
 
 from core.jpmc_agent import create_jpmc_agent
 from core.state import State
@@ -39,6 +40,67 @@ def _increment_client_review_count(callback_context: CallbackContext) -> None:
 	state[State.CLIENT_REVIEW_COUNT] = int(state.get(State.CLIENT_REVIEW_COUNT) or 0) + 1
 
 
+def _extract_client_response(callback_context: CallbackContext) -> dict:
+	response = getattr(callback_context, "response", None)
+	output = getattr(callback_context, "output", None)
+	content = response or output
+
+	if isinstance(content, BaseModel):
+		return content.model_dump()
+	if isinstance(content, dict):
+		return content
+
+	text = None
+	if isinstance(content, str):
+		text = content
+	else:
+		parts = getattr(content, "parts", None) if content else None
+		if parts:
+			texts = [getattr(part, "text", "") for part in parts if getattr(part, "text", None)]
+			text = "\n".join(texts) if texts else None
+
+	if text:
+		return {"resolved": False, "follow_up": text}
+	return {}
+
+
+def _apply_follow_up_reset(callback_context: CallbackContext) -> None:
+	state = callback_context.state
+	client_response = state.get(State.CLIENT_RESPONSE)
+	if not client_response:
+		client_response = _extract_client_response(callback_context)
+		if client_response:
+			state[State.CLIENT_RESPONSE] = client_response
+
+	if not isinstance(client_response, dict):
+		return
+
+	resolved = bool(client_response.get("resolved"))
+	follow_up = client_response.get("follow_up")
+	review_count = int(state.get(State.CLIENT_REVIEW_COUNT) or 0)
+	if resolved or not follow_up or review_count >= MAX_CLIENT_REVIEW_ROUNDS:
+		return
+
+	chat_history = state.get(State.CHAT_HISTORY) or []
+	chat_history.append(
+		{
+			"turn": review_count,
+			"user_query": state.get(State.USER_QUERY),
+			"advisor_recommendation": state.get(State.ADVISOR_RECOMMENDATION),
+			"client_response": client_response,
+		}
+	)
+	state[State.CHAT_HISTORY] = chat_history
+
+	updated_query = f"{state.get(State.USER_QUERY)}\nClient concern: {follow_up}"
+	state[State.USER_QUERY] = updated_query
+	state[State.ANALYST_FINDINGS] = None
+	state[State.ANALYST_RESEARCH_MODE] = None
+	state[State.ANALYST_CALL_COUNT] = 0
+	state[State.ADVISOR_RECOMMENDATION] = None
+	state[State.TODO_LIST] = None
+
+
 def generate_profile(*, name: str = "client_agent"):
 	"""Generate or refresh the simulated client profile."""
 	return create_jpmc_agent(
@@ -59,7 +121,7 @@ def respond_to_recommendation(*, name: str = "client_response_agent"):
 		output_key=State.CLIENT_RESPONSE,
 		output_schema=ClientResponse,
 		before_agent_callback=_client_response_guard,
-		after_agent_callback=_increment_client_review_count,
+		after_agent_callback=[_increment_client_review_count, _apply_follow_up_reset],
 	)
 
 
