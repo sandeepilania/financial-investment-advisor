@@ -3,6 +3,7 @@
 Provides structured, stage-based logging across all agents and services.
 """
 
+import functools
 import json
 import os
 import sys
@@ -169,3 +170,88 @@ class WorkflowLogger:
         logger.opt(depth=1).info(
             LogObject(stage=stage, level="INFO", message=message, data=data, strip_none_values=strip_none)
         )
+
+
+def _truncate_value(value: Any, max_len: int = 300) -> Any:
+    if isinstance(value, str):
+        return value if len(value) <= max_len else value[:max_len] + "..."
+    return value
+
+
+def _summarize_result(result: Any) -> dict[str, Any] | None:
+    if result is None:
+        return None
+    if isinstance(result, list):
+        return {"items": len(result)}
+    if isinstance(result, dict):
+        return {"keys": list(result.keys())[:10], "key_count": len(result)}
+    return {"type": type(result).__name__}
+
+
+def _clean_call_args(args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
+    cleaned_args = []
+    for arg in args:
+        if arg.__class__.__name__ == "ToolContext":
+            continue
+        cleaned_args.append(_truncate_value(arg))
+
+    cleaned_kwargs = {
+        key: _truncate_value(value)
+        for key, value in kwargs.items()
+        if key != "tool_context"
+    }
+
+    return {"args": cleaned_args, "kwargs": cleaned_kwargs}
+
+
+def log_tool_call(stage: str):
+    """Decorator that logs tool invocation start/complete/error via WorkflowLogger."""
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args: Any, **kwargs: Any):
+            WorkflowLogger.log_stage_start(stage, data=_clean_call_args(args, kwargs), strip_none=True)
+            try:
+                result = func(*args, **kwargs)
+            except Exception as exc:  # noqa: BLE001
+                WorkflowLogger.log_error(stage, "FAILED", exc)
+                raise
+            WorkflowLogger.log_stage_complete(stage, summary=_summarize_result(result))
+            return result
+
+        return wrapper
+
+    return decorator
+
+
+def log_tool_event(event: Any) -> None:  # noqa: ANN401
+    """Log ADK tool call/response events with a structured summary."""
+    content = getattr(event, "content", None)
+    parts = getattr(content, "parts", None) if content else None
+    if not parts:
+        return
+
+    for part in parts:
+        function_call = getattr(part, "function_call", None)
+        if function_call:
+            WorkflowLogger.log_stage_progress(
+                "TOOL_CALL",
+                function_call.name,
+                data={
+                    "args": _truncate_value(getattr(function_call, "args", None)),
+                    "id": getattr(function_call, "id", None),
+                },
+                strip_none=True,
+            )
+
+        function_response = getattr(part, "function_response", None)
+        if function_response:
+            WorkflowLogger.log_stage_progress(
+                "TOOL_RESPONSE",
+                function_response.name,
+                data={
+                    "response": _truncate_value(getattr(function_response, "response", None)),
+                    "id": getattr(function_response, "id", None),
+                },
+                strip_none=True,
+            )

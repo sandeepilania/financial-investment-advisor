@@ -7,6 +7,7 @@ from typing import Any
 from google.adk.tools import FunctionTool
 from google.adk.tools.tool_context import ToolContext
 
+from core.loggers import log_tool_call
 from knowledge_store import KnowledgeStore
 
 
@@ -19,6 +20,7 @@ class KnowledgeSearchTool:
     def __init__(self) -> None:
         self._store = KnowledgeStore()
 
+    @log_tool_call("knowledge_search_tool")
     def search_kb(
         self,
         query: str,

@@ -10,6 +10,8 @@ from typing import Any, Iterable
 from google.adk.tools import FunctionTool
 from google.adk.tools.tool_context import ToolContext
 
+from core.loggers import log_tool_call
+
 
 class WebSearchTool:
     """Tool to query DuckDuckGo for lightweight web results."""
@@ -17,6 +19,7 @@ class WebSearchTool:
     __name__ = name = "web_search_tool"
     description = "Searches the web using DuckDuckGo Instant Answer API."
 
+    @log_tool_call("web_search_tool")
     def search_web(
         self,
         query: str,

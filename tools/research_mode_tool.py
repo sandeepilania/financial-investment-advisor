@@ -5,6 +5,7 @@ from __future__ import annotations
 from google.adk.tools import FunctionTool
 from google.adk.tools.tool_context import ToolContext
 
+from core.loggers import log_tool_call
 from core.state import State
 
 
@@ -17,6 +18,7 @@ class ResearchModeTool:
     __name__ = name = "research_mode_tool"
     description = "Sets State.ANALYST_RESEARCH_MODE as a list of research sources."
 
+    @log_tool_call("research_mode_tool")
     def set_research_mode(
         self,
         modes: list[str],

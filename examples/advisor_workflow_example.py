@@ -8,6 +8,7 @@ import uuid
 from google.genai import types
 
 from agents.fia_workflow import create_fia_workflow_runner
+from core.loggers import log_tool_event
 from core.state import State
 
 
@@ -48,6 +49,7 @@ async def main() -> None:
             new_message=content,
         ):
             print("Event type:", event)
+            log_tool_event(event)
             if event.content and event.content.parts:
                 text = "".join(part.text for part in event.content.parts if part.text)
                 if text:
