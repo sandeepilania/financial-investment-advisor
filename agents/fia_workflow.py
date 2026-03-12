@@ -10,6 +10,8 @@ from google.adk.tools.agent_tool import AgentTool
 from agents.analyst_agent.agent import create_analyst_agent
 from agents.advisor_agent.agent import create_advisor_agent
 from agents.advisor_agent.prompts import get_advisor_agent_prompt
+from agents.client_agent.agent import generate_profile, respond_to_recommendation
+from core.adk_plugins import TokenTracingPlugin
 from tools.research_mode_tool import ResearchModeTool
 from tools.todo_tool import TodoTool
 
@@ -27,6 +29,8 @@ def create_fia_workflow_runner(
 	"""
 	tools = [
 		AgentTool(create_analyst_agent()),
+		AgentTool(generate_profile()),
+		AgentTool(respond_to_recommendation()),
 		*TodoTool().get_tools(),
 		*ResearchModeTool().get_tools(),
 	]
@@ -36,12 +40,12 @@ def create_fia_workflow_runner(
 		instruction=get_advisor_agent_prompt,
 		description="Orchestrates research and delivers client-ready investment guidance.",
 		tools=tools,
-		include_contents="none",
 	)
 
 	app = App(
 		name=APP_NAME,
 		root_agent=root_agent,
+		plugins=[TokenTracingPlugin()],
 	)
 
 	if not session_service:

@@ -32,7 +32,27 @@ class KnowledgeSearchTool:
         if not self._store.is_ready:
             self._store.ingest()
 
-        return self._store.search(query, top_k=top_k, filters=filters)
+        raw_results = self._store.search(query, top_k=top_k, filters=filters)
+        results: list[dict[str, Any]] = []
+        for item in raw_results:
+            title = item.get("title") or item.get("doc_id") or "KB Result"
+            doc_id = item.get("doc_id")
+            snippet = item.get("content") or item.get("text_for_embedding") or ""
+            category = item.get("category")
+            citations = item.get("citations") or []
+            url = citations[0] if citations else f"kb://{doc_id}" if doc_id else "kb://unknown"
+            results.append(
+                {
+                    "title": title,
+                    "url": url,
+                    "snippet": snippet,
+                    "source_type": "KB",
+                    "doc_id": doc_id,
+                    "category": category,
+                }
+            )
+
+        return results
 
     def get_tools(self) -> list[FunctionTool]:
         """Return the list of tools provided by this toolset."""

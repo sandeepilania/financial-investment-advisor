@@ -8,19 +8,27 @@ from typing import Any
 
 from google.adk.agents.base_agent import AfterAgentCallback, BeforeAgentCallback
 from google.adk.agents.callback_context import CallbackContext
+from google.adk.apps.app import App
+from google.adk.tools.agent_tool import AgentTool
+from google.adk.tools.base_tool import BaseTool
+from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 from pydantic import BaseModel, ValidationError
 
+from core.adk_plugins import StateSerializationPlugin, TokenTracingPlugin
 from core.jpmc_agent import create_jpmc_agent
 from core.state import State
+from agents.advisor_agent.prompts import get_advisor_agent_prompt
+from agents.analyst_agent.agent import create_analyst_agent
+from agents.client_agent.agent import generate_profile, respond_to_recommendation
 from schemas.advisor_recommendation import AdvisorRecommendation
+from tools.research_mode_tool import ResearchModeTool
+from tools.todo_tool import TodoTool
 
 def _missing_required_state(state: Mapping[str, Any]) -> list[str]:
 	missing: list[str] = []
 	if not state.get(State.USER_QUERY):
 		missing.append(State.USER_QUERY)
-	if not state.get(State.CLIENT_PROFILE):
-		missing.append(State.CLIENT_PROFILE)
 	return missing
 
 
@@ -45,15 +53,41 @@ def _validate_model(model: type[BaseModel], payload: Any) -> BaseModel:  # noqa:
 	return model(payload)
 
 
+def _skip_redundant_analyst_calls(
+	tool: BaseTool,
+	args: dict[str, Any],
+	tool_context: ToolContext,
+) -> dict[str, Any] | None:
+	state = tool_context.state
+	if not state.get(State.ANALYST_FINDINGS):
+		return None
+
+	tool_name = getattr(tool, "name", "")
+	if tool_name == "set_research_mode":
+		modes = state.get(State.ANALYST_RESEARCH_MODE) or []
+		return {"success": True, "modes": modes}
+	if tool_name == "analyst_agent":
+		existing = state.get(State.ANALYST_FINDINGS)
+		if isinstance(existing, dict):
+			payload = dict(existing)
+			payload.setdefault("assumptions", [])
+			payload.setdefault("missing_data", [])
+			return payload
+		if isinstance(existing, str):
+			return {
+				"findings": [{"detail": existing, "sources": []}],
+				"assumptions": [],
+				"missing_data": [],
+			}
+		return {"findings": [{"detail": str(existing), "sources": []}], "assumptions": [], "missing_data": []}
+
+	return None
+
+
 
 
 def before_agent_callback(callback_context: CallbackContext) -> types.Content | None:
 	"""Validate that required input state is present before agent execution."""
-	if _missing_required_state(callback_context.state):
-		return types.Content(
-			role="assistant",
-			parts=[types.Part(text="Missing user query or client profile. Skipping advisor agent.")],
-		)
 	return None
 
 
@@ -92,6 +126,34 @@ def create_advisor_agent(
 		tools=tools,
 		before_agent_callback=before_agent_callback,
 		after_agent_callback=after_agent_callback,
+		before_tool_callback=_skip_redundant_analyst_calls,
 		output_key=State.ADVISOR_RECOMMENDATION,
 		**kwargs,
 	)
+
+
+def create_advisor_root_agent():
+	"""Create a full advisor agent with tool wiring for ADK discovery."""
+	tools = [
+		AgentTool(create_analyst_agent()),
+		AgentTool(generate_profile()),
+		AgentTool(respond_to_recommendation()),
+		*TodoTool().get_tools(),
+		*ResearchModeTool().get_tools(),
+	]
+
+	return create_advisor_agent(
+		name="advisor_agent",
+		instruction=get_advisor_agent_prompt,
+		description="Orchestrates research and delivers client-ready investment guidance.",
+		tools=tools,
+	)
+
+
+root_agent = create_advisor_root_agent()
+
+app = App(
+	name="advisor_agent",
+	root_agent=root_agent,
+	plugins=[TokenTracingPlugin(), StateSerializationPlugin()],
+)
