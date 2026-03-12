@@ -1,11 +1,11 @@
-"""Tool for DuckDuckGo web search via Instant Answer API."""
+"""Tool for Tavily web search."""
 
 from __future__ import annotations
 
 import json
-import urllib.parse
+import os
 import urllib.request
-from typing import Any, Iterable
+from typing import Any
 
 from google.adk.tools import FunctionTool
 from google.adk.tools.tool_context import ToolContext
@@ -14,10 +14,10 @@ from core.loggers import log_tool_call
 
 
 class WebSearchTool:
-    """Tool to query DuckDuckGo for lightweight web results."""
+    """Tool to query Tavily for web results."""
 
     __name__ = name = "web_search_tool"
-    description = "Searches the web using DuckDuckGo Instant Answer API."
+    description = "Searches the web using the Tavily API."
 
     @log_tool_call("web_search_tool")
     def search_web(
@@ -26,29 +26,38 @@ class WebSearchTool:
         tool_context: ToolContext,
         top_k: int = 5,
     ) -> list[dict[str, Any]]:
-        """Search DuckDuckGo and return top results."""
+        """Search Tavily and return top results."""
         if not query.strip():
             return []
 
-        params = {
-            "q": query,
-            "format": "json",
-            "no_html": 1,
-            "skip_disambig": 1,
-        }
-        url = "https://api.duckduckgo.com/?" + urllib.parse.urlencode(params)
+        api_key = os.getenv("TAVILY_API_KEY")
+        if not api_key:
+            raise RuntimeError("Missing TAVILY_API_KEY")
 
-        with urllib.request.urlopen(url, timeout=20) as response:
-            payload = response.read().decode("utf-8")
-            data = json.loads(payload)
+        payload = json.dumps({
+            "api_key": api_key,
+            "query": query,
+            "max_results": top_k,
+        }).encode("utf-8")
+
+        request = urllib.request.Request(
+            "https://api.tavily.com/search",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+
+        with urllib.request.urlopen(request, timeout=20) as response:
+            data = json.loads(response.read().decode("utf-8"))
 
         results = []
-        for item in self._flatten_related_topics(data.get("RelatedTopics", [])):
-            title = item.get("Text")
-            url = item.get("FirstURL")
+        for item in data.get("results", []):
+            title = item.get("title")
+            url = item.get("url")
+            snippet = item.get("content") or item.get("snippet")
             if not title or not url:
                 continue
-            results.append({"title": title, "url": url, "snippet": title})
+            results.append({"title": title, "url": url, "snippet": snippet})
             if len(results) >= top_k:
                 break
 
@@ -58,10 +67,3 @@ class WebSearchTool:
         """Return the list of tools provided by this toolset."""
         return [FunctionTool(self.search_web)]
 
-    @staticmethod
-    def _flatten_related_topics(items: Iterable[dict[str, Any]]) -> Iterable[dict[str, Any]]:
-        for item in items:
-            if "Topics" in item:
-                yield from WebSearchTool._flatten_related_topics(item.get("Topics", []))
-            else:
-                yield item

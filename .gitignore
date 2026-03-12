@@ -36,3 +36,7 @@ Thumbs.db
 
 # local scripts
 tests/
+
+# local logs for debugging
+logs/
+*.log

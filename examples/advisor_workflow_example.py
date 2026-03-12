@@ -48,12 +48,7 @@ async def main() -> None:
             session_id=session_id,
             new_message=content,
         ):
-            print("Event type:", event)
             log_tool_event(event)
-            if event.content and event.content.parts:
-                text = "".join(part.text for part in event.content.parts if part.text)
-                if text:
-                    print("Event:", text)
             if event.is_final_response():
                 print("Final response event received.")
 

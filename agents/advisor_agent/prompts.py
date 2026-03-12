@@ -22,6 +22,7 @@ supporting information, then produce a concise, practical recommendation tailore
 ## Ordering constraints
 
 - Use your judgement on ordering, but do not skip required steps.
+- Always create a todo list before any research or final response.
 - If research is required, set `State.ANALYST_RESEARCH_MODE` before calling the analyst agent.
 - Use the analyst findings (`State.ANALYST_FINDINGS`) when you finalize the response.
 
@@ -80,7 +81,8 @@ You have access to the following agents:
 """.strip()
 
 TOOLS_MESSAGE = """
-Use the todo list tool to track tasks that must be completed before delivering the final response.
+Before any research or final response, call `todo_tool.add_todos` with 2-4 concrete tasks.
+Mark each task `done` with `todo_tool.update_todo` as you complete it, and do not finalize until all are done.
 Keep the list short and only add items that clearly move the recommendation forward.
 You have one global list: avoid duplicates and remove items that are no longer needed.
 If you cannot execute a task with available tools or agents, do not add it to the todo list.

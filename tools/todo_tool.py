@@ -124,8 +124,10 @@ class TodoTool:
         return {"success": True, "todos": self.todo_list.todos}
 
     @log_tool_call("todo_tool.update_todo")
-    def update_todo(self, inp: UpdateTodoInput, tool_context: ToolContext) -> TodoToolResult:
+    def update_todo(self, index: int, state: Literal["todo", "in_progress", "done"], tool_context: ToolContext) -> TodoToolResult:
         """Update the state of an existing Todo item."""
+        inp = UpdateTodoInput(index=index, state=state)
+
         if not (0 <= inp.index < len(self.todo_list.todos)):
             msg = f"Index {inp.index} out of range"
             raise IndexError(msg)
