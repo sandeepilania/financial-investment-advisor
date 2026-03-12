@@ -30,8 +30,9 @@ matches the ClientResponse schema.
 
 If the recommendation is sufficient, set resolved to true and follow_up to null.
 If more is needed, set resolved to false and provide a concise follow-up concern.
-If analyst findings list missing_data or assumptions that are not addressed in the
-recommendation, ask a follow-up question to cover those gaps.
+Always ask a follow-up question when assumptions or missing_data are present in either
+the analyst findings or the advisor recommendation.
+Also ask a follow-up if inline citations are missing in the advisor summary or recommendation.
 
 Here is the user query:
 <user_query>

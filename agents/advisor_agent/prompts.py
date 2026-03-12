@@ -29,6 +29,7 @@ supporting information, then produce a concise, practical recommendation tailore
 - Use the analyst findings (`State.ANALYST_FINDINGS`) when you finalize the response.
 - Only call the client response agent after `State.ADVISOR_RECOMMENDATION` is set.
 - Call the client response agent at most once per recommendation cycle.
+- Call the analyst agent at most once per recommendation cycle.
 
 ## Responsibilities
 
@@ -37,9 +38,19 @@ supporting information, then produce a concise, practical recommendation tailore
 - If the client profile is missing, call the client agent to generate it before research.
 - Coordinate with the analyst agent for research and validation.
 - Draft the recommendation, then call the client response agent to confirm whether it resolves the conversation.
-- If the client response is unresolved, update the recommendation once using the follow-up concern and re-check the client response.
+- If the client response is unresolved, update the current context in `State.CHAT_HISTORY`, incorporate the follow-up concern, and run a new round using the updated information.
+- Repeat the loop until the client resolves the recommendation or the hard cap on review rounds is reached.
 - Produce a clear recommendation with rationale and next steps.
 When the analyst agent returns, use `State.ANALYST_FINDINGS` to inform your response.
+
+## Review loop behavior
+
+You must follow this exact pattern for each cycle:
+1) Use the analyst tools to gather findings and summarize them.
+2) Produce the recommendation JSON.
+3) Call the client response agent to approve or request a follow-up.
+4) If a follow-up is returned, append a new entry to `State.CHAT_HISTORY` with the original query, your recommendation summary, and the client response. Then start the next cycle with the updated query that includes the follow-up.
+5) Stop when the client response is resolved or the max review rounds are reached.
 
 ## Research routing for the analyst agent
 
@@ -103,6 +114,7 @@ You have access to the following agents:
 TOOLS_MESSAGE = """
 Before any research or final response, call `todo_tool.add_todos` with 2-4 concrete tasks.
 Mark each task `done` with `todo_tool.update_todo` as you complete it, and do not finalize until all are done.
+If all tasks are already marked `done`, do not call `todo_tool.update_todo` again.
 Keep the list short and only add items that clearly move the recommendation forward.
 You have one global list: avoid duplicates and remove items that are no longer needed.
 If you cannot execute a task with available tools or agents, do not add it to the todo list.
@@ -111,6 +123,7 @@ Use the research mode tool to set `State.ANALYST_RESEARCH_MODE` before calling t
 Use the client agent to generate a missing client profile or to evaluate if the recommendation resolves the query.
 Do not call the client response agent until after you set `State.ADVISOR_RECOMMENDATION`.
 If the client response is unresolved, revise once, then either finalize or stop.
+Do not re-run research tools inside the same recommendation cycle after analyst findings are available.
 """.strip()
 
 

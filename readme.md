@@ -219,6 +219,16 @@ poetry run python -m google.adk.cli web .\agents --session_service_uri memory://
 }
 ```
 
+## Evaluation plan
+
+Overall system quality should be assessed by subject matter experts (SMEs) using a structured review process:
+
+- **Reviewer profile**: 2-3 SMEs in portfolio construction, private markets, or wealth management.
+- **Sample set**: 20-30 diverse user queries covering risk profiles, liquidity constraints, and product types.
+- **Scoring rubric** (1-5 each): suitability to profile, factual accuracy, clarity of recommendations, use of evidence, and completeness of assumptions/missing data.
+- **Artifacts for review**: advisor output JSON, analyst findings with sources, and the client resolution status.
+- **Feedback loop**: aggregate scores, identify top failure modes, and update prompts/tools accordingly.
+
 ## Assumptions and limitations
 
 - The Client Agent is a simulated persona, not a live human. In production, this would be replaced by real user interaction.
@@ -226,5 +236,6 @@ poetry run python -m google.adk.cli web .\agents --session_service_uri memory://
 - Web UI persistence can fail if complex objects are stored in session state; use in-memory sessions for the UI command above.
 - External API keys are required for web search and LLM providers.
 - The Tantivy-based search is a minimal implementation intended for demos and does not include advanced ranking or filtering.
+- Inline citations in the recommendation text are encouraged but not strictly enforced by validation.
 - Some error handling uses base exceptions rather than dedicated exception types due to time constraints.
 - Unit tests are not yet in place; examples act as the current smoke checks.

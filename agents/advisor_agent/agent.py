@@ -59,14 +59,47 @@ def _skip_redundant_analyst_calls(
 	tool_context: ToolContext,
 ) -> dict[str, Any] | None:
 	state = tool_context.state
-	if not state.get(State.ANALYST_FINDINGS):
+	tool_name = getattr(tool, "name", "")
+	if tool_name == "update_todo":
+		index = args.get("index")
+		if index is None:
+			return None
+		todo_list = state.get(State.TODO_LIST)
+		if todo_list is None:
+			return None
+		todos = getattr(todo_list, "todos", None)
+		if todos is None and isinstance(todo_list, Iterable):
+			todos = list(todo_list)
+		if not todos:
+			return None
+		if 0 <= index < len(todos) and getattr(todos[index], "state", None) == "done":
+			return {"success": True, "todos": todos}
 		return None
 
-	tool_name = getattr(tool, "name", "")
 	if tool_name == "set_research_mode":
 		modes = state.get(State.ANALYST_RESEARCH_MODE) or []
-		return {"success": True, "modes": modes}
+		if modes:
+			return {"success": True, "modes": modes}
+		return None
 	if tool_name == "analyst_agent":
+		call_count = int(state.get(State.ANALYST_CALL_COUNT) or 0)
+		if call_count >= 1:
+			existing = state.get(State.ANALYST_FINDINGS)
+			if existing:
+				if isinstance(existing, dict):
+					payload = dict(existing)
+					payload.setdefault("assumptions", [])
+					payload.setdefault("missing_data", [])
+					return payload
+				return {
+					"findings": [{"detail": str(existing), "sources": []}],
+					"assumptions": [],
+					"missing_data": [],
+				}
+			return {"findings": [], "assumptions": [], "missing_data": []}
+		state[State.ANALYST_CALL_COUNT] = call_count + 1
+		if not state.get(State.ANALYST_FINDINGS):
+			return None
 		existing = state.get(State.ANALYST_FINDINGS)
 		if isinstance(existing, dict):
 			payload = dict(existing)

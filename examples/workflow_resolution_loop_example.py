@@ -62,7 +62,9 @@ async def main() -> None:
 	for round_idx in range(1, max_rounds + 1):
 		print(f"\n--- Advisor round {round_idx} ---")
 		advisor_content = types.Content(role="user", parts=[types.Part(text=base_query)])
+		print("Advisor run: start")
 		await _run_agent(advisor_runner, user_id=user_id, session_id=session_id, content=advisor_content)
+		print("Advisor run: end")
 
 		print(f"\n--- Client eval {round_idx} ---")
 		client_content = types.Content(role="user", parts=[types.Part(text="Evaluate the recommendation.")])
@@ -97,13 +99,22 @@ async def main() -> None:
 			break
 
 		if follow_up:
+			print("Follow-up requested. Rerunning advisor with client concern.")
 			updated_query = f"{base_query}\nClient concern: {follow_up}"
 			await _apply_state_delta(
 				advisor_runner,
 				user_id=user_id,
 				session_id=session_id,
-				delta={State.USER_QUERY: updated_query},
+				delta={
+					State.USER_QUERY: updated_query,
+					State.ANALYST_FINDINGS: None,
+					State.ANALYST_RESEARCH_MODE: None,
+					State.ANALYST_CALL_COUNT: 0,
+					State.ADVISOR_RECOMMENDATION: None,
+					State.TODO_LIST: None,
+				},
 			)
+			base_query = updated_query
 
 
 if __name__ == "__main__":

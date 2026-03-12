@@ -37,11 +37,6 @@ def _analyst_guard(callback_context: CallbackContext) -> types.Content | None:
 	return None
 
 
-def _increment_analyst_call_count(callback_context: CallbackContext) -> None:
-	state = callback_context.state
-	state[State.ANALYST_CALL_COUNT] = int(state.get(State.ANALYST_CALL_COUNT) or 0) + 1
-
-
 def _capture_analyst_findings(callback_context: CallbackContext) -> None:
 	state = callback_context.state
 	if state.get(State.ANALYST_FINDINGS):
@@ -87,5 +82,5 @@ def create_analyst_agent(*, name: str = "analyst_agent"):
 		output_key=State.ANALYST_FINDINGS,
 		output_schema=AnalystFindings,
 		before_agent_callback=_analyst_guard,
-		after_agent_callback=[_increment_analyst_call_count, _capture_analyst_findings],
+		after_agent_callback=[_capture_analyst_findings],
 	)
