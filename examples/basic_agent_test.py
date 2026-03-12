@@ -1,7 +1,7 @@
 """Basic ADK agent + InMemoryRunner smoke test.
 
 Verifies end-to-end that:
-  - _build_litellm_model() builds a LiteLlm pointed at GitHub Models
+    - _build_litellm_model() builds a LiteLlm from .env settings
   - create_llm_agent() wraps it in an ADK LlmAgent
   - InMemoryRunner can create a session and run the agent
   - The agent produces at least one final response event
