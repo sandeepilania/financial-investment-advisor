@@ -9,6 +9,7 @@ from google.adk.tools import FunctionTool
 from google.adk.tools.tool_context import ToolContext
 from pydantic import BaseModel
 
+from core.loggers import log_tool_call
 from core.state import State
 
 T = TypeVar("T")
@@ -113,14 +114,16 @@ class TodoTool:
         """Initialize the Todo tool with an empty Todo list."""
         self.todo_list = TodoList(todos=[], session_id=session_id)
 
+    @log_tool_call("todo_tool.add_todos")
     def add_todos(self, inp: AddTodosInput, tool_context: ToolContext) -> TodoToolResult:
         """Add new Todo items to the list."""
-        insert_idx = inp.index if inp.index is not None else len(self.todo_list) - 1
+        insert_idx = inp.index if inp.index is not None else len(self.todo_list)
         self.todo_list.todos[insert_idx:insert_idx] = [Todo(task=task, state="todo") for task in inp.tasks]
 
         tool_context.state[State.TODO_LIST] = self.todo_list
         return {"success": True, "todos": self.todo_list.todos}
 
+    @log_tool_call("todo_tool.update_todo")
     def update_todo(self, inp: UpdateTodoInput, tool_context: ToolContext) -> TodoToolResult:
         """Update the state of an existing Todo item."""
         if not (0 <= inp.index < len(self.todo_list.todos)):
@@ -132,6 +135,7 @@ class TodoTool:
 
         return {"success": True, "todos": self.todo_list.todos}
 
+    @log_tool_call("todo_tool.clear_todos")
     def clear_todos(self, tool_context: ToolContext) -> TodoToolResult:
         """Clear all Todo items from the list."""
         self.todo_list.todos.clear()
@@ -139,7 +143,8 @@ class TodoTool:
 
         return {"success": True}
 
-    def delete_todo(self, todo: str) -> TodoToolResult:
+    @log_tool_call("todo_tool.delete_todo")
+    def delete_todo(self, todo: str, tool_context: ToolContext) -> TodoToolResult:
         """Delete a todo items.
 
         # Arguments:
@@ -152,10 +157,13 @@ class TodoTool:
             raise ValueError(msg)
 
         self.todo_list.todos.remove(val)
+        tool_context.state[State.TODO_LIST] = self.todo_list
         return {"success": True}
 
-    def read_todos(self) -> list[Todo]:
+    @log_tool_call("todo_tool.read_todos")
+    def read_todos(self, tool_context: ToolContext) -> list[Todo]:
         """Return the list of Todo items."""
+        tool_context.state[State.TODO_LIST] = self.todo_list
         return self.todo_list.todos
 
     def get_tools(self) -> list[FunctionTool]:
