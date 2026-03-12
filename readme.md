@@ -15,7 +15,7 @@ The agents should communicate effectively to reach a resolution and terminate on
 The system is an advisor-led workflow. The Advisor Agent orchestrates the plan, delegates research to the Analyst Agent, and uses a simulated Client Agent to generate the profile and evaluate whether the recommendation resolves the query. The workflow enforces a single decision-maker and an explicit stop condition.
 
 <img width="1737" height="692" alt="image" src="https://github.com/user-attachments/assets/1b8c21e3-1301-41da-a5ea-a7f053d11a2e" />
-<img width="1737" height="692" alt="image" src="https://github.com/user-attachments/assets/1b8c21e3-1301-41da-a5ea-a7f053d11a2e" />
+
 
 
 
