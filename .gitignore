@@ -12,6 +12,7 @@ dist/
 .eggs/
 
 # LanceDB data (local vector store)
+knowledge_store/lancedb/
 knowledge_store/data/lancedb/
 
 # Pytest
@@ -32,3 +33,6 @@ Thumbs.db
 # IDEs
 .vscode/
 .idea/
+
+# local scripts
+tests/
