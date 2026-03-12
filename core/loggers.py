@@ -9,22 +9,44 @@ import os
 import sys
 from typing import Any, Literal
 
+from typing_extensions import override
+
 from loguru import logger
 from pydantic import BaseModel
 
 
-def strip_none(data: dict[str, Any]) -> dict[str, Any]:
-    """Recursively remove None values from a dict.
+USE_LNAV_FORMAT = (os.environ.get("USE_LNAV_LOG_FORMAT") or os.environ.get("USE_LNAV_FORMAT")) in [
+    "1",
+    "true",
+    "True",
+    "y",
+    "Y",
+    "yes",
+    "YES",
+]
 
-    Only strips None — preserves 0, False, and empty strings
-    since those can be meaningful log values.
-    """
-    return {k: strip_none(v) if isinstance(v, dict) else v for k, v in data.items() if v is not None}
+
+def prune_falsy_values(data: Any) -> Any:
+    """Recursively remove falsy values from dicts/lists, preserving numeric zeros."""
+    if isinstance(data, (int, float)):
+        return data
+
+    if isinstance(data, list):
+        return [prune_falsy_values(item) for item in data]
+
+    if isinstance(data, dict):
+        return {k: prune_falsy_values(v) for k, v in data.items() if v}
+
+    return data
 
 
-USE_LNAV_LOG_FORMAT = os.getenv("USE_LNAV_LOG_FORMAT")
-USE_LNAV_FORMAT = os.getenv("USE_LNAV_FORMAT")
-_USE_JSON_LOGS = bool(USE_LNAV_LOG_FORMAT or USE_LNAV_FORMAT)
+def _json_default(value: Any) -> Any:  # noqa: ANN401
+    """Fallback JSON encoder for log payloads."""
+    if isinstance(value, BaseModel):
+        return value.model_dump()
+    if isinstance(value, (set, tuple)):
+        return list(value)
+    return str(value)
 
 
 class LogObject(BaseModel):
@@ -34,34 +56,34 @@ class LogObject(BaseModel):
     level: Literal["DEBUG", "INFO", "WARNING", "ERROR"]
     message: str
     data: dict[str, Any] | BaseModel | None = None
-    strip_none_values: bool = False
+    prune_falsy: bool = False
 
-    def to_json(self) -> str:
-        data = self.data
-        if self.strip_none_values and isinstance(data, dict):
-            data = strip_none(data)
+    @override
+    def model_dump_json(self, *args: object, **kwargs: object) -> str:
+        obj_dict = self.model_dump(*args, **kwargs)
 
-        payload = {
-            "stage": self.stage,
-            "level": self.level,
-            "message": self.message,
-            "data": data,
-        }
+        if self.data is None:
+            obj_dict.pop("data", None)
 
-        return json.dumps(payload, ensure_ascii=True)
+        try:
+            return json.dumps(obj_dict, default=_json_default)
+        except TypeError:
+            _ = obj_dict.pop("data", None)
+            return json.dumps(obj_dict, default=_json_default)
 
     def __str__(self) -> str:
-        if _USE_JSON_LOGS:
-            return self.to_json()
+        if self.prune_falsy and self.data is not None:
+            self.data = prune_falsy_values(self.data)
+
+        if USE_LNAV_FORMAT:
+            return self.model_dump_json()
 
         data = self.data
-        if self.strip_none_values and isinstance(data, dict):
-            data = strip_none(data)
 
         if isinstance(data, BaseModel):
             pretty_data = data.model_dump_json(indent=2)
         else:
-            pretty_data = json.dumps(data, indent=2) if data is not None else None
+            pretty_data = json.dumps(data, indent=2, default=_json_default) if data is not None else None
 
         return f"[{self.stage}] {self.level}: {self.message}" + (f"\nData: {pretty_data}" if pretty_data else "")
 
@@ -85,7 +107,7 @@ class WorkflowLogger:
     """
 
     @staticmethod
-    def log_stage_start(stage: str, data: dict[str, Any] | None = None, *, strip_none: bool = False) -> None:
+    def log_stage_start(stage: str, data: dict[str, Any] | None = None, *, prune_falsy: bool = False) -> None:
         """Log the start of a stage at INFO level.
 
         Args:
@@ -94,11 +116,13 @@ class WorkflowLogger:
             strip_none: Remove None values from data before logging
         """
         logger.opt(depth=1).info(
-            LogObject(stage=stage, level="INFO", message="START", data=data, strip_none_values=strip_none)
+            LogObject(stage=stage, level="INFO", message="START", data=data, prune_falsy=prune_falsy)
         )
 
     @staticmethod
-    def log_stage_progress(stage: str, message: str, data: dict[str, Any] | None = None, *, strip_none: bool = False) -> None:
+    def log_stage_progress(
+        stage: str, message: str, data: dict[str, Any] | None = None, *, prune_falsy: bool = False
+    ) -> None:
         """Log mid-stage progress at DEBUG level.
 
         Args:
@@ -108,7 +132,7 @@ class WorkflowLogger:
             strip_none: Remove None values from data before logging
         """
         logger.opt(depth=1).debug(
-            LogObject(stage=stage, level="DEBUG", message=message, data=data, strip_none_values=strip_none)
+            LogObject(stage=stage, level="DEBUG", message=message, data=data, prune_falsy=prune_falsy)
         )
 
     @staticmethod
@@ -126,7 +150,7 @@ class WorkflowLogger:
                 level="INFO",
                 message="COMPLETE",
                 data={"summary": summary, "execution_time": execution_time},
-                strip_none_values=True,
+                prune_falsy=True,
             )
         )
 
@@ -144,7 +168,7 @@ class WorkflowLogger:
         )
 
     @staticmethod
-    def log_warning(stage: str, message: str, data: dict[str, Any] | None = None, *, strip_none: bool = False) -> None:
+    def log_warning(stage: str, message: str, data: dict[str, Any] | None = None, *, prune_falsy: bool = False) -> None:
         """Log a warning at WARNING level.
 
         Args:
@@ -154,11 +178,11 @@ class WorkflowLogger:
             strip_none: Remove None values from data before logging
         """
         logger.opt(depth=1).warning(
-            LogObject(stage=stage, level="WARNING", message=message, data=data, strip_none_values=strip_none)
+            LogObject(stage=stage, level="WARNING", message=message, data=data, prune_falsy=prune_falsy)
         )
 
     @staticmethod
-    def log_info(stage: str, message: str, data: dict[str, Any] | None = None, *, strip_none: bool = False) -> None:
+    def log_info(stage: str, message: str, data: dict[str, Any] | None = None, *, prune_falsy: bool = False) -> None:
         """Log an informational message at INFO level.
 
         Args:
@@ -168,24 +192,8 @@ class WorkflowLogger:
             strip_none: Remove None values from data before logging
         """
         logger.opt(depth=1).info(
-            LogObject(stage=stage, level="INFO", message=message, data=data, strip_none_values=strip_none)
+            LogObject(stage=stage, level="INFO", message=message, data=data, prune_falsy=prune_falsy)
         )
-
-
-def _truncate_value(value: Any, max_len: int = 300) -> Any:
-    if isinstance(value, str):
-        return value if len(value) <= max_len else value[:max_len] + "..."
-    return value
-
-
-def _summarize_result(result: Any) -> dict[str, Any] | None:
-    if result is None:
-        return None
-    if isinstance(result, list):
-        return {"items": len(result)}
-    if isinstance(result, dict):
-        return {"keys": list(result.keys())[:10], "key_count": len(result)}
-    return {"type": type(result).__name__}
 
 
 def _clean_call_args(args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str, Any]:
@@ -193,10 +201,12 @@ def _clean_call_args(args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str,
     for arg in args:
         if arg.__class__.__name__ == "ToolContext":
             continue
-        cleaned_args.append(_truncate_value(arg))
+        if arg.__class__.__name__.endswith("Tool"):
+            continue
+        cleaned_args.append(arg)
 
     cleaned_kwargs = {
-        key: _truncate_value(value)
+        key: value
         for key, value in kwargs.items()
         if key != "tool_context"
     }
@@ -209,16 +219,25 @@ def log_tool_call(stage: str):
 
     def decorator(func):
         @functools.wraps(func)
-        def wrapper(*args: Any, **kwargs: Any):
-            WorkflowLogger.log_stage_start(stage, data=_clean_call_args(args, kwargs), strip_none=True)
+        def wrapper(
+            *args: Any,
+            __log_start=WorkflowLogger.log_stage_start,
+            __log_complete=WorkflowLogger.log_stage_complete,
+            __log_error=WorkflowLogger.log_error,
+            __clean=_clean_call_args,
+            **kwargs: Any,
+        ):
+            __log_start(stage, data=__clean(args, kwargs), prune_falsy=True)
             try:
                 result = func(*args, **kwargs)
             except Exception as exc:  # noqa: BLE001
-                WorkflowLogger.log_error(stage, "FAILED", exc)
+                __log_error(stage, "FAILED", exc)
                 raise
-            WorkflowLogger.log_stage_complete(stage, summary=_summarize_result(result))
+            __log_complete(stage, summary={"result": result})
             return result
 
+        wrapper.__globals__.update(func.__globals__)
+        wrapper.__annotations__ = func.__annotations__
         return wrapper
 
     return decorator
@@ -238,10 +257,10 @@ def log_tool_event(event: Any) -> None:  # noqa: ANN401
                 "TOOL_CALL",
                 function_call.name,
                 data={
-                    "args": _truncate_value(getattr(function_call, "args", None)),
+                    "args": getattr(function_call, "args", None),
                     "id": getattr(function_call, "id", None),
                 },
-                strip_none=True,
+                prune_falsy=True,
             )
 
         function_response = getattr(part, "function_response", None)
@@ -250,8 +269,8 @@ def log_tool_event(event: Any) -> None:  # noqa: ANN401
                 "TOOL_RESPONSE",
                 function_response.name,
                 data={
-                    "response": _truncate_value(getattr(function_response, "response", None)),
+                    "response": getattr(function_response, "response", None),
                     "id": getattr(function_response, "id", None),
                 },
-                strip_none=True,
+                prune_falsy=True,
             )
