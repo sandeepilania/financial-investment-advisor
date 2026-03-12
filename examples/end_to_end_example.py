@@ -1,4 +1,4 @@
-"""End-to-end example for the advisor-led workflow."""
+"""End-to-end example that exercises client, analyst, and advisor flows."""
 
 from __future__ import annotations
 
@@ -14,20 +14,19 @@ from core.state import State
 
 async def main() -> None:
     runner = create_fia_workflow_runner()
-    print("Starting advisor workflow example...")
+    print("Starting end-to-end workflow example...")
 
     user_id = "example_user"
     session_id = str(uuid.uuid4())
 
+    query_example1 = "I want a strategy for investing in private pre‑IPO secondaries with a moderate‑risk profile"
+    # query_example2 = (
+    #         "I am planning for a moderate-risk retirement goal. Please explain the "
+    #         "long-term strategy using core concepts like diversification and bond laddering, "
+    #         "and also incorporate the latest 2026 interest rate and inflation outlook."
+    #     )
     initial_state = {
-        State.USER_QUERY: "What investment strategy would you recommend for a moderate-risk retirement goal, considering current interest rates, inflation, and market conditions in 2026?",
-        State.CLIENT_PROFILE: {
-            "name": "Alex",
-            "age": 35,
-            "risk_tolerance": "moderate",
-            "investment_goals": ["retirement"],
-            "current_investments": ["index funds"],
-        },
+        State.USER_QUERY: query_example1
     }
 
     await runner.session_service.create_session(
@@ -60,7 +59,12 @@ async def main() -> None:
         session_id=session_id,
     )
 
+    client_profile = session.state.get(State.CLIENT_PROFILE)
+    client_response = session.state.get(State.CLIENT_RESPONSE)
     recommendation = session.state.get(State.ADVISOR_RECOMMENDATION)
+
+    print("Client profile:\n", client_profile)
+    print("Client response:\n", client_response)
     print("Final recommendation:\n", recommendation)
 
 

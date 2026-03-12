@@ -49,6 +49,22 @@ def _json_default(value: Any) -> Any:  # noqa: ANN401
     return str(value)
 
 
+def _scrub_embeddings(data: Any) -> Any:  # noqa: ANN401
+    """Remove embedding/vector fields from nested log payloads."""
+    if isinstance(data, list):
+        return [_scrub_embeddings(item) for item in data]
+
+    if isinstance(data, dict):
+        scrubbed: dict[str, Any] = {}
+        for key, value in data.items():
+            if key in {"vector", "embedding", "embeddings"}:
+                continue
+            scrubbed[key] = _scrub_embeddings(value)
+        return scrubbed
+
+    return data
+
+
 class LogObject(BaseModel):
     """Structured log object for workflow logging."""
 
@@ -203,10 +219,10 @@ def _clean_call_args(args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[str,
             continue
         if arg.__class__.__name__.endswith("Tool"):
             continue
-        cleaned_args.append(arg)
+        cleaned_args.append(_scrub_embeddings(arg))
 
     cleaned_kwargs = {
-        key: value
+        key: _scrub_embeddings(value)
         for key, value in kwargs.items()
         if key != "tool_context"
     }
@@ -250,27 +266,35 @@ def log_tool_event(event: Any) -> None:  # noqa: ANN401
     if not parts:
         return
 
+    tool_logger = logger.patch(lambda record: record.update(name="tool_events"))
+
     for part in parts:
         function_call = getattr(part, "function_call", None)
         if function_call:
-            WorkflowLogger.log_stage_progress(
-                "TOOL_CALL",
-                function_call.name,
-                data={
-                    "args": getattr(function_call, "args", None),
-                    "id": getattr(function_call, "id", None),
-                },
-                prune_falsy=True,
+            tool_logger.opt(depth=2).debug(
+                LogObject(
+                    stage="TOOL_CALL",
+                    level="DEBUG",
+                    message=function_call.name,
+                    data={
+                        "args": getattr(function_call, "args", None),
+                        "id": getattr(function_call, "id", None),
+                    },
+                    prune_falsy=True,
+                )
             )
 
         function_response = getattr(part, "function_response", None)
         if function_response:
-            WorkflowLogger.log_stage_progress(
-                "TOOL_RESPONSE",
-                function_response.name,
-                data={
-                    "response": getattr(function_response, "response", None),
-                    "id": getattr(function_response, "id", None),
-                },
-                prune_falsy=True,
+            tool_logger.opt(depth=2).debug(
+                LogObject(
+                    stage="TOOL_RESPONSE",
+                    level="DEBUG",
+                    message=function_response.name,
+                    data={
+                        "response": getattr(function_response, "response", None),
+                        "id": getattr(function_response, "id", None),
+                    },
+                    prune_falsy=True,
+                )
             )

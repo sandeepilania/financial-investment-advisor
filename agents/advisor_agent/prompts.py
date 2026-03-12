@@ -23,14 +23,21 @@ supporting information, then produce a concise, practical recommendation tailore
 
 - Use your judgement on ordering, but do not skip required steps.
 - Always create a todo list before any research or final response.
+- If the client profile is missing, call the client agent to generate it before research.
 - If research is required, set `State.ANALYST_RESEARCH_MODE` before calling the analyst agent.
+- If `State.ANALYST_FINDINGS` is already populated, do not call the analyst agent again.
 - Use the analyst findings (`State.ANALYST_FINDINGS`) when you finalize the response.
+- Only call the client response agent after `State.ADVISOR_RECOMMENDATION` is set.
+- Call the client response agent at most once per recommendation cycle.
 
 ## Responsibilities
 
 - Interpret the user's intent and risk profile.
 - Make reasonable assumptions if details are missing; do not ask follow-up questions.
+- If the client profile is missing, call the client agent to generate it before research.
 - Coordinate with the analyst agent for research and validation.
+- Draft the recommendation, then call the client response agent to confirm whether it resolves the conversation.
+- If the client response is unresolved, update the recommendation once using the follow-up concern and re-check the client response.
 - Produce a clear recommendation with rationale and next steps.
 When the analyst agent returns, use `State.ANALYST_FINDINGS` to inform your response.
 
@@ -48,7 +55,7 @@ Set a list of sources, e.g., ["KB"], ["WEB"], or ["KB", "WEB"].
 ## Efficiency
 
 Each agent/tool call has overhead. Avoid redundant calls. If research is required, make one focused
-analyst request, then proceed with a recommendation.
+analyst request that bundles all research needs, then proceed with a recommendation.
 
 ## User feedback
 
@@ -60,6 +67,14 @@ Return a JSON object with exactly these keys:
 - summary: string
 - recommendation: string
 - next_steps: list of strings
+- assumptions: list of strings
+- missing_data: list of strings
+- citations: list of strings
+
+Inline citation rules:
+- Add inline citation markers like [1], [2] in the summary and recommendation.
+- The citations list must align with the inline markers in order.
+- Use sources from `State.ANALYST_FINDINGS` whenever available.
 
 Do not wrap the JSON in Markdown or code fences.
 
@@ -72,6 +87,11 @@ Here is the client profile:
 <client_profile>
 {{{State.CLIENT_PROFILE}}}
 </client_profile>
+
+Here are the analyst findings (if any):
+<analyst_findings>
+{{{State.ANALYST_FINDINGS}}}
+</analyst_findings>
 """.strip()
 
 AVAILABLE_AGENTS = """
@@ -88,15 +108,23 @@ You have one global list: avoid duplicates and remove items that are no longer n
 If you cannot execute a task with available tools or agents, do not add it to the todo list.
 
 Use the research mode tool to set `State.ANALYST_RESEARCH_MODE` before calling the analyst agent.
+Use the client agent to generate a missing client profile or to evaluate if the recommendation resolves the query.
+Do not call the client response agent until after you set `State.ADVISOR_RECOMMENDATION`.
+If the client response is unresolved, revise once, then either finalize or stop.
 """.strip()
 
 
 async def get_advisor_agent_prompt(ctx: ReadonlyContext) -> str:
 	"""Generate the planning prompt for the advisor agent."""
+	state = ctx.state
+	user_query = state.get(State.USER_QUERY, "")
+	client_profile = state.get(State.CLIENT_PROFILE, "")
+	analyst_findings = state.get(State.ANALYST_FINDINGS, "")
+
 	prompt = PREAMBLE + " " + PLANNING_MESSAGE + "\n\n"
 	prompt += TOOLS_MESSAGE
-
-	return await instructions_utils.inject_session_state(
-		prompt + "\n\n" + AVAILABLE_AGENTS,
-		ctx,
-	)
+	prompt = prompt + "\n\n" + AVAILABLE_AGENTS
+	prompt = prompt.replace(f"{{{{{State.USER_QUERY}}}}}", str(user_query))
+	prompt = prompt.replace(f"{{{{{State.CLIENT_PROFILE}}}}}", str(client_profile))
+	prompt = prompt.replace(f"{{{{{State.ANALYST_FINDINGS}}}}}", str(analyst_findings))
+	return prompt

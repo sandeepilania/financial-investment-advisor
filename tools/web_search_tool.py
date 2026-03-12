@@ -50,14 +50,21 @@ class WebSearchTool:
         with urllib.request.urlopen(request, timeout=20) as response:
             data = json.loads(response.read().decode("utf-8"))
 
-        results = []
+        results: list[dict[str, Any]] = []
         for item in data.get("results", []):
             title = item.get("title")
             url = item.get("url")
             snippet = item.get("content") or item.get("snippet")
             if not title or not url:
                 continue
-            results.append({"title": title, "url": url, "snippet": snippet})
+            results.append(
+                {
+                    "title": title,
+                    "url": url,
+                    "snippet": snippet or "",
+                    "source_type": "WEB",
+                }
+            )
             if len(results) >= top_k:
                 break
 
